@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccountCard } from '@/components/AccountCard';
 import { ConsultationCard } from '@/components/ConsultationCard';
 import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { Card, EmptyState, SectionTitle } from '@/components/ui';
@@ -36,6 +37,8 @@ export default function FavoritesScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
+      <AccountCard />
+
       <View style={styles.section}>
         <SectionTitle>{t('fav.savedSearches')}</SectionTitle>
         {searches.length === 0 ? (
