@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Badge, Card, PrimaryButton } from '@/components/ui';
+import { Badge, Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useLang, useT } from '@/lib/i18n';
 import { colors } from '@/lib/theme';
@@ -15,7 +15,7 @@ export function PlanBadge() {
   return <Badge label={t('account.planFree')} bg={colors.neutralSoft} fg="#3B463F" />;
 }
 
-/** Top of the Favoris tab: log in / upgrade for guests, the account and plan for logged-in users. */
+/** Top of the Favoris tab, for logged-in users only: name and plan, opens Mon compte (logout, delete). */
 export function AccountCard() {
   const t = useT();
   const status = useAuth((s) => s.status);
@@ -24,24 +24,8 @@ export function AccountCard() {
 
   if (status === 'loading') return null;
 
-  if (status === 'guest' || !user) {
-    return (
-      <Card style={{ gap: 12 }}>
-        <View style={styles.row}>
-          <View style={styles.icon}>
-            <Ionicons name="star-outline" size={20} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.title}>{t('account.guestTitle')}</Text>
-            <Text style={styles.text}>{t('account.guestMsg')}</Text>
-          </View>
-        </View>
-        <View style={styles.row}>
-          <PrimaryButton label={t('account.login')} onPress={() => router.push('/connexion')} />
-        </View>
-      </Card>
-    );
-  }
+  // No account: nothing here. The "Abonnement Premium" banner is on Accueil.
+  if (status === 'guest' || !user) return null;
 
   return (
     <Card onPress={() => router.push('/compte')} style={styles.row}>
