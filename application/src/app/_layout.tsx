@@ -29,6 +29,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="filtres" options={{ title: t('screen.filters'), presentation: 'modal' }} />
         <Stack.Screen name="consultation/[id]" options={{ title: t('screen.consultation') }} />
+        <Stack.Screen name="pdf" options={{ title: t('screen.document') }} />
       </Stack>
     </QueryClientProvider>
   );

@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Card, CategoryBadge, ErrorState, Loading, PrimaryButton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { daysLeft, formatDate, formatDateTime, formatMoney, sentenceCase, titleCase } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { useSaved } from '@/lib/store';
 import { colors, radius } from '@/lib/theme';
 import type { Consultation, DocumentLink } from '@/lib/types';
@@ -208,7 +209,13 @@ function KeyFacts({ c }: { c: Consultation }) {
   );
 }
 
+/** PDFs open in the in-app reader (not on the web version, where the browser shows them). */
+function isPdf(d: DocumentLink) {
+  return Platform.OS !== 'web' && /\.pdf$/i.test(d.nom || d.url.split('?')[0]);
+}
+
 function Documents({ docs: all }: { docs: DocumentLink[] }) {
+  const t = useT();
   const docs = all.filter((d) => d?.url);
   if (!docs.length) return null;
   return (
@@ -216,21 +223,27 @@ function Documents({ docs: all }: { docs: DocumentLink[] }) {
       <Text style={styles.cardTitle}>Dossier de consultation</Text>
       {docs.map((d, i) => {
         const ext = (d.url.split('?')[0].split('.').pop() ?? '').toUpperCase();
+        const pdf = isPdf(d);
+        // PDF: tapping the row reads it in the app, the icon downloads it. Other files: both download.
+        const open = () => (pdf ? router.push({ pathname: '/pdf', params: { url: d.url, title: d.nom } }) : download(d.url));
         return (
           <Pressable
             key={`${d.url}-${i}`}
-            onPress={() => download(d.url)}
+            onPress={open}
             style={({ pressed }) => [styles.docRow, pressed && { opacity: 0.7 }]}
-            accessibilityRole="link"
+            accessibilityRole={pdf ? 'button' : 'link'}
+            accessibilityHint={pdf ? t('doc.readHint') : undefined}
           >
-            <View style={styles.docIcon}>
-              <Text style={styles.docExt}>{ext.length <= 4 && ext ? ext : 'DOC'}</Text>
+            <View style={[styles.docIcon, pdf && styles.docIconPdf]}>
+              <Text style={[styles.docExt, pdf && { color: colors.danger }]}>{ext.length <= 4 && ext ? ext : 'DOC'}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.docName}>{d.nom || 'Document'}</Text>
-              {d.taille ? <Text style={styles.muted}>{d.taille}</Text> : null}
+              <Text style={styles.muted}>{[d.taille, pdf ? t('doc.readInApp') : null].filter(Boolean).join(' · ')}</Text>
             </View>
-            <Ionicons name="download-outline" size={20} color={colors.primary} />
+            <Pressable onPress={() => download(d.url)} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('doc.downloadLabel', { name: d.nom || '' })}>
+              <Ionicons name="download-outline" size={20} color={colors.primary} />
+            </Pressable>
           </Pressable>
         );
       })}
@@ -284,6 +297,7 @@ const styles = StyleSheet.create({
   factValue: { fontSize: 14, fontWeight: '600', color: colors.text, flexShrink: 1, textAlign: 'right' },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   docIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.neutralSoft, alignItems: 'center', justifyContent: 'center' },
+  docIconPdf: { backgroundColor: '#FDECEA' },
   docExt: { fontSize: 10, fontWeight: '700', color: '#3B463F' },
   docName: { fontSize: 14, fontWeight: '500', color: colors.text },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -21,6 +21,7 @@ const fr = {
   'tabs.favorites': 'Favoris',
   'screen.filters': 'Filtres',
   'screen.consultation': 'Consultation',
+  'screen.document': 'Document',
 
   // Language
   'lang.title': 'Langue',
@@ -165,6 +166,16 @@ const fr = {
   'fav.followed': 'Consultations suivies',
   'fav.emptyTitle': 'Aucun favori',
   'fav.emptyMsg': 'Touchez l’icône signet sur une consultation pour la suivre ici.',
+
+  // PDF reader
+  'pdf.loading': 'Ouverture du document…',
+  'pdf.errorTitle': "Le document n'a pas pu être affiché",
+  'pdf.errorMsg': "Vérifiez votre connexion, ou téléchargez le fichier pour l'ouvrir avec une autre application.",
+  'pdf.retry': 'Réessayer',
+  'pdf.download': 'Télécharger',
+  'doc.readInApp': "Lire dans l'application",
+  'doc.readHint': "Ouvre le document dans l'application",
+  'doc.downloadLabel': 'Télécharger {name}',
 };
 
 export type TKey = keyof typeof fr;
@@ -176,6 +187,7 @@ const ar: Record<TKey, string> = {
   'tabs.favorites': 'المفضلة',
   'screen.filters': 'التصفية',
   'screen.consultation': 'طلب العروض',
+  'screen.document': 'وثيقة',
 
   'lang.title': 'اللغة',
   'lang.restartTitle': 'إعادة التشغيل مطلوبة',
@@ -309,6 +321,15 @@ const ar: Record<TKey, string> = {
   'fav.followed': 'طلبات العروض المتابَعة',
   'fav.emptyTitle': 'لا توجد مفضلات',
   'fav.emptyMsg': 'اضغط على أيقونة الإشارة في طلب عروض لمتابعته هنا.',
+
+  'pdf.loading': 'جارٍ فتح الوثيقة…',
+  'pdf.errorTitle': 'تعذّر عرض الوثيقة',
+  'pdf.errorMsg': 'تحقّق من اتصالك، أو حمّل الملف لفتحه بتطبيق آخر.',
+  'pdf.retry': 'إعادة المحاولة',
+  'pdf.download': 'تحميل',
+  'doc.readInApp': 'القراءة داخل التطبيق',
+  'doc.readHint': 'يفتح الوثيقة داخل التطبيق',
+  'doc.downloadLabel': 'تحميل {name}',
 };
 
 export type Lang = 'fr' | 'ar';
