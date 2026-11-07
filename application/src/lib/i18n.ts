@@ -258,6 +258,10 @@ const fr = {
   'account.delete': 'Supprimer mon compte',
   'account.deleteMsg': 'Votre compte et votre abonnement seront supprimés définitivement. Saisissez votre mot de passe pour confirmer.',
   'account.deleteConfirm': 'Supprimer définitivement',
+  'home.premiumSub': 'Alertes, rappels de date limite et favoris sur tous vos appareils.',
+  'home.premiumPendingSub': 'Votre demande est en cours de validation.',
+  'home.premiumCta': 'Découvrir',
+  'home.premiumFollow': 'Suivre',
 };
 
 export type TKey = keyof typeof fr;
@@ -494,6 +498,10 @@ const ar: Record<TKey, string> = {
   'account.delete': 'حذف حسابي',
   'account.deleteMsg': 'سيتم حذف حسابك واشتراكك نهائياً. أدخل كلمة المرور للتأكيد.',
   'account.deleteConfirm': 'حذف نهائي',
+  'home.premiumSub': 'تنبيهات، تذكير بآخر أجل، ومفضلات على جميع أجهزتك.',
+  'home.premiumPendingSub': 'طلبك قيد المراجعة.',
+  'home.premiumCta': 'اكتشف',
+  'home.premiumFollow': 'متابعة',
 };
 
 export type Lang = 'fr' | 'ar';

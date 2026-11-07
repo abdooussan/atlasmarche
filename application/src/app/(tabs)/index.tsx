@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PremiumBanner } from '@/components/AccountCard';
 import { ConsultationCard } from '@/components/ConsultationCard';
 import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { Card, EmptyState, ErrorState, Loading, SectionTitle } from '@/components/ui';
@@ -57,6 +58,8 @@ export default function HomeScreen() {
           />
         }
       >
+        <PremiumBanner />
+
         <View style={styles.section}>
           <SectionTitle>{t('home.byCategory')}</SectionTitle>
           <View style={styles.grid3}>
