@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import type { Attribution, Consultation, FetchFilesResult, Filters, Meta, Page, TenderFiles } from './types';
+import type { Attribution, AuthSession, Consultation, FetchFilesResult, Filters, Meta, Page, TenderFiles, User } from './types';
 
 /**
  * API address. Set EXPO_PUBLIC_API_URL in mobile/.env, or "extra.apiUrl" in app.json.
@@ -20,36 +20,61 @@ export const API_URL = (
 export const FILES_URL = (process.env.EXPO_PUBLIC_FILES_URL ?? API_URL).replace(/\/$/, '');
 
 export class ApiError extends Error {
-  constructor(message: string, public status?: number) {
+  /** `code` is the API's machine-readable reason, e.g. "bad_credentials", "premium_required". */
+  constructor(message: string, public status?: number, public code?: string) {
     super(message);
   }
 }
 
-async function get<T>(
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'DELETE';
+  params?: Record<string, string | undefined>;
+  body?: unknown;
+  /** Access token, sent as "Authorization: Bearer ...". */
+  token?: string | null;
+  base?: string;
+};
+
+/** Low-level call to the API. Throws ApiError with the server's message, status and code. */
+export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', params, body, token, base = `${API_URL}/api` } = opts;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params ?? {})) if (v) qs.set(k, v);
+  const url = `${base}${path}${qs.size ? `?${qs}` : ''}`;
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      method,
+      signal: controller.signal,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new ApiError(data?.error ?? data?.message ?? `Erreur ${res.status}`, res.status, data?.code);
+    }
+    return (await res.json()) as T;
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError('Impossible de joindre le serveur. Vérifiez votre connexion.', undefined, 'network');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function get<T>(
   path: string,
   params?: Record<string, string | undefined>,
   base = `${API_URL}/api`,
   method: 'GET' | 'POST' = 'GET',
 ): Promise<T> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params ?? {})) if (v) qs.set(k, v);
-  const url = `${base}${path}${qs.size ? `?${qs}` : ''}`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(url, { method, signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new ApiError(body?.error ?? body?.message ?? `Erreur ${res.status}`, res.status);
-    }
-    return (await res.json()) as T;
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    throw new ApiError('Impossible de joindre le serveur. Vérifiez votre connexion.');
-  } finally {
-    clearTimeout(timer);
-  }
+  return request<T>(path, { params, base, method });
 }
 
 /** Convert the filter state into query-string parameters for the API. */
@@ -86,6 +111,23 @@ export const api = {
   meta: () => get<Meta>('/meta'),
   files: (id: string) => get<TenderFiles>(`/files/${encodeURIComponent(id)}`, undefined, FILES_URL),
   /** Ask the server to download the tender's documents from the portal (runs in the background). */
-  fetchFiles: (id: string) =>
-    get<FetchFilesResult>(`/files/${encodeURIComponent(id)}/fetch`, undefined, FILES_URL, 'POST'),
+  fetchFiles: (id: string, filesToken: string) =>
+    get<FetchFilesResult>(`/files/${encodeURIComponent(id)}/fetch`, { t: filesToken }, FILES_URL, 'POST'),
+};
+
+/** Account endpoints. Calls that need the logged-in user go through auth.ts (it adds and refreshes the token). */
+export const authApi = {
+  register: (data: { email: string; password: string; name: string; company?: string }) =>
+    request<AuthSession>('/auth/register', { method: 'POST', body: data }),
+  login: (email: string, password: string) =>
+    request<AuthSession>('/auth/login', { method: 'POST', body: { email, password } }),
+  refresh: (refreshToken: string) => request<AuthSession>('/auth/refresh', { method: 'POST', body: { refreshToken } }),
+  logout: (refreshToken: string) => request<{ ok: true }>('/auth/logout', { method: 'POST', body: { refreshToken } }),
+  me: (token: string) => request<{ user: User }>('/me', { token }),
+  /** Premium only: token that opens this tender's documents on files-api (valid 2 hours). */
+  filesToken: (token: string, id: string) =>
+    request<{ token: string; expiresIn: number }>('/me/files-token', { method: 'POST', token, body: { id } }),
+  premiumRequest: (token: string) => request<{ user: User }>('/me/premium-request', { method: 'POST', token }),
+  deleteAccount: (token: string, password: string) =>
+    request<{ ok: true }>('/me', { method: 'DELETE', token, body: { password } }),
 };

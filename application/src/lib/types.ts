@@ -87,3 +87,23 @@ export type Filters = {
   maxEstimation: string;
   sort: Sort;
 };
+/** Logged-in account, as returned by the API (/api/me). */
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  company: string;
+  /** Premium is active (is_paid = true in the database and not past paid_until). */
+  isPaid: boolean;
+  paidUntil: string | null;
+  /** When the user last asked for Premium on WhatsApp. */
+  premiumRequestedAt: string | null;
+  createdAt: string;
+};
+
+export type AuthSession = {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+};

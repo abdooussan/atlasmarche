@@ -21,6 +21,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${PGDATABASE:-marches_publics}
       API_DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD in .env}
+      # Used only when the database is created for the first time (initdb/02-api-auth.sh).
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
     volumes:
       # Mounted one level up so it works with both PostgreSQL 17 and 18+ images.
       - pgdata:/var/lib/postgresql
@@ -52,6 +54,10 @@ services:
       ATTRIBUTIONS_TABLE: ${ATTRIBUTIONS_TABLE:-}
       PORT: 4000
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Accounts (login + Premium): see DEPLOY.md, "Comptes utilisateurs".
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      AUTH_PGUSER: api_auth
+      AUTH_PGPASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in .env}
     # Not published: only Caddy can reach it.
     expose:
       - "4000"
@@ -83,6 +89,8 @@ services:
       PORT: 4100
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       DCE_SERVICE_URL: http://dce:8090
+      # Checks the Premium document links made by the API (same secret).
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     volumes:
       - /opt/marches/dce:/data/dce:ro
     expose:

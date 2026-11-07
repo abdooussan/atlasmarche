@@ -10,9 +10,14 @@
 //   GET /files/:id/:name           -> one file
 //   POST /files/:id/fetch          -> asks dce-service to download the tender's DCE into DCE_DIR/<id>
 //
+// Premium only: opening or downloading a file, the ZIP, and "Récupérer le dossier" need ?t=<token>.
+// The main API gives that token to Premium users (POST /api/me/files-token), signed with JWT_SECRET,
+// valid 2 hours for one tender. The list (GET /files/:id) stays open so free users see what exists.
+//
 // When a tender has no files yet, GET /files/:id also returns `status` (and sometimes `message`)
 // from dce-service: idle | pending | failed | none | unavailable. The app shows a
 // "Récupérer le dossier" button for idle/failed and checks again while it is pending.
+import crypto from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import archiver from 'archiver';
@@ -68,6 +73,32 @@ async function dceService(method, route, timeoutMs) {
   }
 }
 
+// Same secret as the main API. Without it, every file request is refused.
+const JWT_SECRET = process.env.JWT_SECRET || '';
+if (JWT_SECRET.length < 32) console.warn('JWT_SECRET missing: documents can not be opened (Premium check).');
+
+/** True when `token` is a document token from the main API for this tender, not expired. */
+function validFilesToken(token, tenderId) {
+  if (JWT_SECRET.length < 32 || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  const [header, payload, sig] = parts;
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest();
+  const given = Buffer.from(sig, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return false;
+  try {
+    const p = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return p.typ === 'files' && p.tid === String(tenderId) && typeof p.exp === 'number' && p.exp > Date.now() / 1000;
+  } catch {
+    return false;
+  }
+}
+
+function premiumOnly(req, res, next) {
+  if (validFilesToken(req.query.t, req.params.id)) return next();
+  res.status(403).json({ error: 'Documents réservés aux abonnés Premium', code: 'premium_required' });
+}
+
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // behind Caddy: use the real https address in the links
@@ -100,7 +131,7 @@ app.get('/files/:id', async (req, res) => {
 });
 
 // The user asked for the documents: dce-service downloads them in the background into DCE_DIR/<id>.
-app.post('/files/:id/fetch', fetchLimit, async (req, res) => {
+app.post('/files/:id/fetch', premiumOnly, fetchLimit, async (req, res) => {
   if (!folderOf(req.params.id)) return res.status(400).json({ error: 'Identifiant invalide' });
   if ((await listFiles(req.params.id)).length) return res.json({ status: 'ready' });
   const { http, body } = await dceService('POST', `/fetch/${req.params.id}`, 15000);
@@ -109,7 +140,7 @@ app.post('/files/:id/fetch', fetchLimit, async (req, res) => {
 });
 
 // The whole folder as one ZIP.
-app.get('/files/:id/zip', async (req, res) => {
+app.get('/files/:id/zip', premiumOnly, async (req, res) => {
   const files = await listFiles(req.params.id);
   if (!files.length) return res.status(404).json({ error: 'Aucun document pour cette consultation' });
 
@@ -127,7 +158,7 @@ app.get('/files/:id/zip', async (req, res) => {
 });
 
 // One file. Only names that really are in the folder are served.
-app.get('/files/:id/:name', async (req, res) => {
+app.get('/files/:id/:name', premiumOnly, async (req, res) => {
   const files = await listFiles(req.params.id);
   const file = files.find((f) => f.name === req.params.name);
   if (!file) return res.status(404).json({ error: 'Document introuvable' });

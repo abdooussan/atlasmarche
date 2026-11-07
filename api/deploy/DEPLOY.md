@@ -167,6 +167,64 @@ docker compose up -d --build
 ```
 Your data is not touched.
 
+## Comptes utilisateurs (login + Premium)
+
+The app works without an account (free plan). Logging in is only for Premium, and Premium is
+on when `is_paid = true` for the account. You turn it on yourself after the client contacts
+you on WhatsApp.
+
+### One-time setup on a server that is already running — server, in /opt/marches/deploy
+
+1. **Get the new code** (`git pull` in `/opt/marches`, or copy the `api/` and `deploy/` folders across).
+2. **Add two secrets to `.env`:**
+   ```bash
+   echo "AUTH_DB_PASSWORD=$(openssl rand -hex 24)" >> .env
+   echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+   ```
+3. **Create the account tables and the `api_auth` database user:**
+   ```bash
+   set -a; . ./.env; set +a
+   docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d "${PGDATABASE:-marches_publics}" \
+     -v auth_password="$AUTH_DB_PASSWORD" < ../api/sql/auth.sql
+   ```
+   (On a brand-new server you can skip this step: `initdb/02-api-auth.sh` does it when the database is first created.)
+4. **Restart the API:** `docker compose up -d --build api`, then `docker compose logs api` should show `Account tables ready`.
+
+### Documents are Premium only
+
+Opening or downloading a tender's documents (each file, the ZIP, and "Récupérer le dossier")
+needs Premium. The API gives Premium users a link valid 2 hours for one tender, and `files-api`
+refuses any file request without it (`403 premium_required`). Free users still see the list of files.
+`files-api` checks the links with the same `JWT_SECRET` as the API, so after an update rebuild both:
+`docker compose up -d --build api files`.
+
+### Turning Premium on for a client
+
+When a client sends the WhatsApp message (it contains their e-mail) and has paid:
+
+```bash
+docker compose exec api npm run user -- pending                  # who asked and is waiting
+docker compose exec api npm run user -- paid client@mail.ma 12   # Premium for 12 months
+docker compose exec api npm run user -- paid client@mail.ma      # Premium with no end date
+docker compose exec api npm run user -- unpaid client@mail.ma    # turn it off
+docker compose exec api npm run user -- list                     # all accounts
+```
+
+The client's app picks the change up the next time it's opened or comes back to the screen.
+After the end date (`paid_until`), Premium switches off by itself.
+
+**Forgotten password:** the app opens WhatsApp with the client's e-mail. Make a temporary password with
+`docker compose exec api npm run user -- reset client@mail.ma` and send it back to them.
+
+**Same thing in SQL**, if you prefer: `UPDATE app_users SET is_paid = true WHERE email = 'client@mail.ma';`
+
+**Protecting a Premium-only API route** (in `api/src/routes/...`):
+```js
+import { requireAuth, requirePremium } from '../auth.js';
+router.get('/mon-endpoint', requireAuth, requirePremium, async (req, res) => { /* ... */ });
+```
+It answers `401` without login and `403` (`code: "premium_required"`) for free accounts.
+
 ## Adding a domain later
 
 1. At your domain registrar, create an **A record**: `api.mondomaine.ma` → your server IP.
@@ -192,4 +250,6 @@ Your data is not touched.
 | Caddy log says the certificate failed / rate limited | Use `API_DOMAIN=51-75-12-34.nip.io` instead (another free service), or a real domain. |
 | `pg_restore: error: unsupported version` | The server's PostgreSQL is older than your Mac's. Set `POSTGRES_VERSION` in `.env` to your Mac's major version, then: `docker compose down -v` (**deletes server data**), `docker compose up -d`, and redo step 6. |
 | `/api/consultations` returns `Erreur serveur` | `docker compose logs api` shows the cause — usually the table name (`CONSULTATIONS_TABLE`) or the import not done yet. |
+| API stops with `JWT_SECRET is missing` or compose says `Set JWT_SECRET in .env` | Do step 2 of "Comptes utilisateurs". |
+| `password authentication failed for user "api_auth"` | Step 3 of "Comptes utilisateurs" wasn't run, or `AUTH_DB_PASSWORD` changed since: run step 3 again (it resets the password). |
 | `password authentication failed for user "api_reader"` | You changed `API_DB_PASSWORD` after the first start. Set it back, or update the user: `docker compose exec db psql -U postgres -c "ALTER ROLE api_reader PASSWORD 'new-value'"`. |
