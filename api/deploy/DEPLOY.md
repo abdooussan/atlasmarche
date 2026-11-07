@@ -190,6 +190,14 @@ you on WhatsApp.
    (On a brand-new server you can skip this step: `initdb/02-api-auth.sh` does it when the database is first created.)
 4. **Restart the API:** `docker compose up -d --build api`, then `docker compose logs api` should show `Account tables ready`.
 
+### Documents are Premium only
+
+Opening or downloading a tender's documents (each file, the ZIP, and "Récupérer le dossier")
+needs Premium. The API gives Premium users a link valid 2 hours for one tender, and `files-api`
+refuses any file request without it (`403 premium_required`). Free users still see the list of files.
+`files-api` checks the links with the same `JWT_SECRET` as the API, so after an update rebuild both:
+`docker compose up -d --build api files`.
+
 ### Turning Premium on for a client
 
 When a client sends the WhatsApp message (it contains their e-mail) and has paid:

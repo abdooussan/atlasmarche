@@ -45,12 +45,25 @@ export function normalizeEmail(email) {
 // ---- Access tokens (JWT, HS256) ----
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 
-export function signAccessToken(userId) {
+function sign(claims, ttlSeconds) {
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = b64url(JSON.stringify({ sub: String(userId), iat: now, exp: now + ACCESS_TTL_SECONDS }));
+  const payload = b64url(JSON.stringify({ ...claims, iat: now, exp: now + ttlSeconds }));
   const sig = crypto.createHmac('sha256', secret()).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${sig}`;
+}
+
+export function signAccessToken(userId) {
+  return sign({ sub: String(userId) }, ACCESS_TTL_SECONDS);
+}
+
+// ---- Document links (Premium) ----
+// files-api serves a tender's documents only with ?t=<this token>. It lasts 2 hours and works
+// for one tender only. files-api checks it with the same JWT_SECRET (see files-api/src/server.js).
+export const FILES_TTL_SECONDS = 2 * 60 * 60;
+
+export function signFilesToken(userId, tenderId) {
+  return sign({ typ: 'files', sub: String(userId), tid: String(tenderId) }, FILES_TTL_SECONDS);
 }
 
 /** Returns the user id, or null if the token is invalid or expired. */
@@ -65,6 +78,7 @@ export function verifyAccessToken(token) {
     const h = JSON.parse(Buffer.from(header, 'base64url').toString());
     const p = JSON.parse(Buffer.from(payload, 'base64url').toString());
     if (h.alg !== 'HS256' || typeof p.exp !== 'number' || p.exp < Date.now() / 1000) return null;
+    if (p.typ) return null; // a document link token is not a login
     return p.sub ?? null;
   } catch {
     return null;

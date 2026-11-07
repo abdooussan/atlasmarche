@@ -111,8 +111,8 @@ export const api = {
   meta: () => get<Meta>('/meta'),
   files: (id: string) => get<TenderFiles>(`/files/${encodeURIComponent(id)}`, undefined, FILES_URL),
   /** Ask the server to download the tender's documents from the portal (runs in the background). */
-  fetchFiles: (id: string) =>
-    get<FetchFilesResult>(`/files/${encodeURIComponent(id)}/fetch`, undefined, FILES_URL, 'POST'),
+  fetchFiles: (id: string, filesToken: string) =>
+    get<FetchFilesResult>(`/files/${encodeURIComponent(id)}/fetch`, { t: filesToken }, FILES_URL, 'POST'),
 };
 
 /** Account endpoints. Calls that need the logged-in user go through auth.ts (it adds and refreshes the token). */
@@ -124,6 +124,9 @@ export const authApi = {
   refresh: (refreshToken: string) => request<AuthSession>('/auth/refresh', { method: 'POST', body: { refreshToken } }),
   logout: (refreshToken: string) => request<{ ok: true }>('/auth/logout', { method: 'POST', body: { refreshToken } }),
   me: (token: string) => request<{ user: User }>('/me', { token }),
+  /** Premium only: token that opens this tender's documents on files-api (valid 2 hours). */
+  filesToken: (token: string, id: string) =>
+    request<{ token: string; expiresIn: number }>('/me/files-token', { method: 'POST', token, body: { id } }),
   premiumRequest: (token: string) => request<{ user: User }>('/me/premium-request', { method: 'POST', token }),
   deleteAccount: (token: string, password: string) =>
     request<{ ok: true }>('/me', { method: 'DELETE', token, body: { password } }),

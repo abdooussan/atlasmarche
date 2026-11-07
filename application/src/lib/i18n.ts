@@ -262,6 +262,9 @@ const fr = {
   'home.premiumPendingSub': 'Votre demande est en cours de validation.',
   'home.premiumCta': 'Découvrir',
   'home.premiumFollow': 'Suivre',
+  'doc.premiumOnly': 'Réservé Premium',
+  'doc.premiumNote': 'Ouverture et téléchargement des documents réservés aux abonnés Premium.',
+  'doc.premiumUnlock': 'Débloquer avec Premium',
 };
 
 export type TKey = keyof typeof fr;
@@ -502,6 +505,9 @@ const ar: Record<TKey, string> = {
   'home.premiumPendingSub': 'طلبك قيد المراجعة.',
   'home.premiumCta': 'اكتشف',
   'home.premiumFollow': 'متابعة',
+  'doc.premiumOnly': 'خاص ببريميوم',
+  'doc.premiumNote': 'فتح الوثائق وتحميلها متاحان لمشتركي بريميوم فقط.',
+  'doc.premiumUnlock': 'افتح مع بريميوم',
 };
 
 export type Lang = 'fr' | 'ar';

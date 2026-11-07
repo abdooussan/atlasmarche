@@ -89,6 +89,8 @@ services:
       PORT: 4100
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       DCE_SERVICE_URL: http://dce:8090
+      # Checks the Premium document links made by the API (same secret).
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     volumes:
       - /opt/marches/dce:/data/dce:ro
     expose:

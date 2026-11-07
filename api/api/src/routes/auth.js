@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { authPool, authQuery } from '../authDb.js';
 import {
-  USER_COLUMNS, checkPassword, findUser, hashPassword, hashToken, issueSession, normalizeEmail,
-  publicUser, requireAuth, verifyPassword,
+  FILES_TTL_SECONDS, USER_COLUMNS, checkPassword, findUser, hashPassword, hashToken, issueSession, normalizeEmail,
+  publicUser, requireAuth, requirePremium, signFilesToken, verifyPassword,
 } from '../auth.js';
 
 // ---- /api/auth ----
@@ -120,6 +120,14 @@ meRouter.post('/premium-request', async (req, res) => {
   );
   if (!rows[0]) return res.status(401).json({ error: 'Compte introuvable', code: 'unauthorized' });
   res.json({ user: publicUser(rows[0]) });
+});
+
+// POST /api/me/files-token  { id }  — Premium only. Token to add as ?t=... to a tender's document
+// links on files-api (open, download, ZIP, "Récupérer le dossier"). Valid 2 hours, for that tender only.
+meRouter.post('/files-token', requirePremium, (req, res) => {
+  const id = String(req.body?.id ?? '');
+  if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Identifiant invalide', code: 'invalid_id' });
+  res.json({ token: signFilesToken(req.userId, id), expiresIn: FILES_TTL_SECONDS });
 });
 
 // DELETE /api/me  { password } — deletes the account (required by Apple and Google).

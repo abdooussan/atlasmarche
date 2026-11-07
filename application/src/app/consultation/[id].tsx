@@ -6,6 +6,8 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, Sty
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Card, CategoryBadge, ErrorState, Loading, PrimaryButton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { usePremium } from '@/lib/auth';
+import { withDocuments } from '@/lib/files';
 import { daysLeft, formatDate, formatDateTime, formatMoney, sentenceCase, titleCase } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { useSaved } from '@/lib/store';
@@ -30,8 +32,10 @@ export default function ConsultationDetail() {
   const zipUrl = filesQuery.data?.zipUrl ?? null;
   const filesStatus = filesQuery.data?.status;
   const queryClient = useQueryClient();
+  const premium = usePremium();
+  // "Récupérer le dossier" is Premium only too: the token comes from withDocuments().
   const fetchFiles = useMutation({
-    mutationFn: () => api.fetchFiles(id),
+    mutationFn: (filesToken: string) => api.fetchFiles(id, filesToken),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['files', id] }),
   });
   // "Récupérer le dossier": the files aren't on the server yet but the portal has them.
@@ -82,7 +86,7 @@ export default function ConsultationDetail() {
             <Summary c={query.data} />
             <Deadline iso={query.data.dateLimite} />
             <KeyFacts c={query.data} />
-            <Documents docs={files.length ? files : (query.data.documents ?? [])} />
+            <Documents id={id} premium={premium} docs={files.length ? files : (query.data.documents ?? [])} />
             <Timeline c={query.data} />
           </ScrollView>
           <SafeAreaView edges={['bottom']} style={styles.footer}>
@@ -90,8 +94,8 @@ export default function ConsultationDetail() {
               <View style={styles.footerRow}>
                 <PrimaryButton
                   label={`Télécharger le dossier (${files.length} ${files.length > 1 ? 'fichiers' : 'fichier'})`}
-                  icon="download-outline"
-                  onPress={() => download(zipUrl)}
+                  icon={premium ? 'download-outline' : 'lock-closed-outline'}
+                  onPress={() => withDocuments(id, ({ sign }) => download(sign(zipUrl)))}
                 />
               </View>
             ) : preparing ? (
@@ -105,8 +109,8 @@ export default function ConsultationDetail() {
                 <View style={styles.footerRow}>
                   <PrimaryButton
                     label={filesStatus === 'failed' || fetchFiles.isError ? 'Réessayer' : 'Récupérer le dossier'}
-                    icon="cloud-download-outline"
-                    onPress={() => fetchFiles.mutate()}
+                    icon={premium ? 'cloud-download-outline' : 'lock-closed-outline'}
+                    onPress={() => withDocuments(id, ({ token }) => fetchFiles.mutate(token))}
                   />
                 </View>
               </>
@@ -214,18 +218,30 @@ function isPdf(d: DocumentLink) {
   return Platform.OS !== 'web' && /\.pdf$/i.test(d.nom || d.url.split('?')[0]);
 }
 
-function Documents({ docs: all }: { docs: DocumentLink[] }) {
+function Documents({ id, premium, docs: all }: { id: string; premium: boolean; docs: DocumentLink[] }) {
   const t = useT();
   const docs = all.filter((d) => d?.url);
   if (!docs.length) return null;
   return (
     <Card>
       <Text style={styles.cardTitle}>Dossier de consultation</Text>
+      {premium ? null : (
+        <Pressable onPress={() => withDocuments(id, () => {})} style={styles.lockNote} accessibilityRole="button">
+          <Ionicons name="lock-closed" size={16} color={colors.primaryDark} />
+          <Text style={styles.lockNoteText}>{t('doc.premiumNote')}</Text>
+          <Text style={styles.lockNoteLink}>{t('doc.premiumUnlock')}</Text>
+        </Pressable>
+      )}
       {docs.map((d, i) => {
         const ext = (d.url.split('?')[0].split('.').pop() ?? '').toUpperCase();
         const pdf = isPdf(d);
         // PDF: tapping the row reads it in the app, the icon downloads it. Other files: both download.
-        const open = () => (pdf ? router.push({ pathname: '/pdf', params: { url: d.url, title: d.nom } }) : download(d.url));
+        // Premium only: withDocuments() sends others to login / Premium, and signs the link.
+        const open = () =>
+          withDocuments(id, ({ sign }) =>
+            pdf ? router.push({ pathname: '/pdf', params: { url: sign(d.url), title: d.nom } }) : download(sign(d.url)),
+          );
+        const save = () => withDocuments(id, ({ sign }) => download(sign(d.url)));
         return (
           <Pressable
             key={`${d.url}-${i}`}
@@ -239,10 +255,12 @@ function Documents({ docs: all }: { docs: DocumentLink[] }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.docName}>{d.nom || 'Document'}</Text>
-              <Text style={styles.muted}>{[d.taille, pdf ? t('doc.readInApp') : null].filter(Boolean).join(' · ')}</Text>
+              <Text style={styles.muted}>
+                {[d.taille, premium ? (pdf ? t('doc.readInApp') : null) : t('doc.premiumOnly')].filter(Boolean).join(' · ')}
+              </Text>
             </View>
-            <Pressable onPress={() => download(d.url)} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('doc.downloadLabel', { name: d.nom || '' })}>
-              <Ionicons name="download-outline" size={20} color={colors.primary} />
+            <Pressable onPress={save} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('doc.downloadLabel', { name: d.nom || '' })}>
+              <Ionicons name={premium ? 'download-outline' : 'lock-closed-outline'} size={20} color={colors.primary} />
             </Pressable>
           </Pressable>
         );
@@ -308,4 +326,7 @@ const styles = StyleSheet.create({
   preparingText: { flex: 1, fontSize: 13, color: colors.muted },
   fetchError: { fontSize: 13, color: colors.warningDark },
   footer: { gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  lockNote: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: 10, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  lockNoteText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18, color: colors.primaryDark },
+  lockNoteLink: { fontSize: 13, fontWeight: '700', color: colors.primary },
 });
