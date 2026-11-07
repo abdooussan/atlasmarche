@@ -1,0 +1,3 @@
+# Keep playwright at the same version as the image in scraper/Dockerfile.
+playwright==1.55.0
+psycopg2-binary>=2.9

@@ -1,0 +1,26 @@
+# Caddy gets and renews a free HTTPS certificate (Let's Encrypt) automatically
+# for the address in API_DOMAIN.
+#   /files/...      -> files-api (tender documents in /opt/marches/dce/<id>)
+#   everything else -> the main API
+{$API_DOMAIN} {
+	encode gzip
+
+	handle /files/* {
+		reverse_proxy files:4100
+	}
+
+	handle {
+		reverse_proxy api:4000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

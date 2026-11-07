@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Marchés Publics",
+    "slug": "marches-publics",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ma.marchespublics.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0E6B47",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "ma.marchespublics.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "marchespublics",
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "apiUrl": "http://192.168.1.10:4000",
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "4cc5e055-10d1-4355-8a01-6485d6cd28f2"
+      }
+    }
+  }
+}

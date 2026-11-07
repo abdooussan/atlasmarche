@@ -1,0 +1,149 @@
+# Runs the whole backend on one server:
+#   db    — PostgreSQL with your tenders data
+#   api   — the Node.js API (reads the database with a read-only user)
+#   caddy — public web server with automatic HTTPS, forwards requests to the API
+#           and /files/... to the files service
+#   files — serves the tender documents in /opt/marches/dce/<id> (files-api, no database)
+#   dce   — downloads a tender's documents from the portal into /opt/marches/dce/<id>
+#           when a user taps "Récupérer le dossier" in the app (files-api asks it)
+#
+# Start:   docker compose up -d --build
+# Logs:    docker compose logs -f api
+# Stop:    docker compose down          (your data is kept in the "pgdata" volume)
+
+services:
+  db:
+    # Same major version as the PostgreSQL on your Mac (see DEPLOY.md, step 4).
+    image: postgres:${POSTGRES_VERSION:-17}-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${PGDATABASE:-marches_publics}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD in .env}
+    volumes:
+      # Mounted one level up so it works with both PostgreSQL 17 and 18+ images.
+      - pgdata:/var/lib/postgresql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    # Reachable from the server itself only (for your Python scraper and backups),
+    # never from the internet.
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${PGDATABASE:-marches_publics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ../api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: api_reader
+      PGPASSWORD: ${API_DB_PASSWORD}
+      PGDATABASE: ${PGDATABASE:-marches_publics}
+      CONSULTATIONS_TABLE: ${CONSULTATIONS_TABLE:-tenders}
+      ATTRIBUTIONS_TABLE: ${ATTRIBUTIONS_TABLE:-}
+      PORT: 4000
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    # Not published: only Caddy can reach it.
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - files
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # Serves the tender documents saved in /opt/marches/dce/<id> (see files-api/README.md).
+  # Separate from the API: it has no database access and only reads that folder.
+  files:
+    build: ../files-api
+    restart: unless-stopped
+    environment:
+      DCE_DIR: /data/dce
+      PORT: 4100
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      DCE_SERVICE_URL: http://dce:8090
+    volumes:
+      - /opt/marches/dce:/data/dce:ro
+    expose:
+      - "4100"
+
+  # Downloads a tender's DCE from marchespublics.gov.ma into /opt/marches/dce/<id> when a
+  # user asks for it in the app (scraper/dce_service.py). Only files-api can reach it.
+  # It reads the database with the read-only user and is the only service that writes the folder.
+  dce:
+    build: ../scraper
+    entrypoint: ["python", "dce_service.py"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: api_reader
+      PGPASSWORD: ${API_DB_PASSWORD}
+      PGDATABASE: ${PGDATABASE:-marches_publics}
+      DCE_DIR: /data/dce
+      DCE_PORT: 8090
+      # Written in the portal's download form (required: nom, prénom, email, raison sociale).
+      DCE_NOM: ${DCE_NOM:-}
+      DCE_PRENOM: ${DCE_PRENOM:-}
+      DCE_EMAIL: ${DCE_EMAIL:-}
+      DCE_RAISON_SOCIALE: ${DCE_RAISON_SOCIALE:-}
+      DCE_ICE: ${DCE_ICE:-}
+      DCE_TELEPHONE: ${DCE_TELEPHONE:-}
+      DCE_VILLE: ${DCE_VILLE:-}
+    volumes:
+      - /opt/marches/dce:/data/dce
+    expose:
+      - "8090"
+    shm_size: "1gb"                  # Chromium needs more shared memory than Docker's default
+    init: true
+
+  # Fetches the latest tenders from marchespublics.gov.ma into the database.
+  # Not started by "up": cron runs it every hour with
+  #   docker compose run --rm scraper
+  scraper:
+    build: ../scraper
+    profiles: ["scraper"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${PGDATABASE:-marches_publics}
+      SCRAPE_DAYS: ${SCRAPE_DAYS:-1}
+      OUTPUT_DIR: /output
+    volumes:
+      - ./scraper-output:/output     # screenshot of the page if a run fails
+    shm_size: "1gb"                  # Chromium needs more shared memory than Docker's default
+    init: true
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
