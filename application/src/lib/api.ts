@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import type { AuthResult, User, Attribution, Consultation, FetchFilesResult, Filters, Meta, Page, TenderFiles } from './types';
+import type { AuthResult, DeviceInfo, User, Attribution, Consultation, FetchFilesResult, Filters, Meta, Page, TenderFiles } from './types';
 
 /**
  * API address. Set EXPO_PUBLIC_API_URL in mobile/.env, or "extra.apiUrl" in app.json.
@@ -99,10 +99,10 @@ export function filtersToParams(f: Filters): Record<string, string | undefined> 
 }
 
 export const api = {
-  register: (name: string, email: string, password: string) =>
-    get<AuthResult>('/auth/register', undefined, undefined, 'POST', { name, email, password }),
-  login: (email: string, password: string) =>
-    get<AuthResult>('/auth/login', undefined, undefined, 'POST', { email, password }),
+  register: (name: string, email: string, password: string, device: DeviceInfo) =>
+    get<AuthResult>('/auth/register', undefined, undefined, 'POST', { name, email, password, device }),
+  login: (email: string, password: string, device: DeviceInfo) =>
+    get<AuthResult>('/auth/login', undefined, undefined, 'POST', { email, password, device }),
   me: () => get<{ user: User }>('/auth/me'),
   logout: () => get<void>('/auth/logout', undefined, undefined, 'POST'),
   consultations: (f: Filters, page: number) =>

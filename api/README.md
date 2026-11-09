@@ -117,7 +117,19 @@ while older app versions without login are still in use). Passwords are hashed w
 only a SHA-256 of each token. Sessions last 90 days (`SESSION_DAYS`). Login and sign-up are limited to 20 attempts
 per 15 minutes per IP address.
 
-**Existing server — run once** to create the `app_users` and `app_sessions` tables (new databases get them automatically):
+**Phones per account.** At sign-in the app sends a random id for the phone (created on first launch, kept after
+sign-out), its name and system. Each phone keeps one session per account, and every phone is recorded in `app_devices`.
+To see how many phones use each email:
+
+```bash
+docker compose exec db psql -U postgres -d marches_publics \
+  -c "SELECT email, phones_total, phones_signed_in, last_seen_at FROM app_user_phones ORDER BY phones_total DESC"
+```
+
+`phones_total` = every phone that has signed in with that email; `phones_signed_in` = phones signed in right now.
+Details per phone: `SELECT * FROM app_devices WHERE user_id = …`.
+
+**Existing server — run once (and again after each update of this file; it only adds what is missing)** to create the `app_users` and `app_sessions` tables (new databases get them automatically):
 
 ```bash
 cd deploy

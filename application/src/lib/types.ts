@@ -90,3 +90,5 @@ export type Filters = {
 /** Signed-in account (from /api/auth). */
 export type User = { id: string; email: string; name: string; createdAt: string };
 export type AuthResult = { token: string; user: User };
+/** Identifies the phone at sign-in, so the server can count the phones used per account. */
+export type DeviceInfo = { id: string; name: string | null; platform: string };

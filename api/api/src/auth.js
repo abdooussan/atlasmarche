@@ -27,16 +27,60 @@ export async function verifyPassword(password, stored) {
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 
-export async function createSession(userId) {
+/**
+ * Opens a session for this user. `device` ({ id, name, platform }, sent by the app) identifies the phone:
+ * a phone keeps one session per account, and is recorded in app_devices to count the phones per email.
+ */
+export async function createSession(userId, device = null) {
   const token = randomBytes(32).toString('base64url');
-  await pool.query(
-    `INSERT INTO app_sessions (token_hash, user_id, expires_at)
-     VALUES ($1, $2, now() + make_interval(days => $3))`,
-    [sha256(token), userId, SESSION_DAYS],
-  );
-  // Housekeeping: forget this user's expired sessions.
-  await pool.query('DELETE FROM app_sessions WHERE user_id = $1 AND expires_at < now()', [userId]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (device) {
+      // Signing in again on the same phone replaces its previous session.
+      await client.query('DELETE FROM app_sessions WHERE user_id = $1 AND device_id = $2', [userId, device.id]);
+      await client.query(
+        `INSERT INTO app_devices (user_id, device_id, device_name, platform) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, device_id) DO UPDATE
+           SET last_seen_at = now(),
+               device_name = COALESCE(EXCLUDED.device_name, app_devices.device_name),
+               platform = COALESCE(EXCLUDED.platform, app_devices.platform)`,
+        [userId, device.id, device.name, device.platform],
+      );
+    }
+    await client.query(
+      `INSERT INTO app_sessions (token_hash, user_id, expires_at, device_id)
+       VALUES ($1, $2, now() + make_interval(days => $3), $4)`,
+      [sha256(token), userId, SESSION_DAYS, device?.id ?? null],
+    );
+    // Housekeeping: forget this user's expired sessions.
+    await client.query('DELETE FROM app_sessions WHERE user_id = $1 AND expires_at < now()', [userId]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
   return token;
+}
+
+/** Marks the phone of this session as seen now (called when the app starts). */
+export async function touchDevice(token) {
+  await pool.query(
+    `UPDATE app_devices d SET last_seen_at = now()
+     FROM app_sessions s
+     WHERE s.token_hash = $1 AND d.user_id = s.user_id AND d.device_id = s.device_id`,
+    [sha256(token)],
+  );
+}
+
+/** { id, name, platform } from the request body, or null. Only short plain strings are kept. */
+export function readDevice(v) {
+  const str = (x, max) => (typeof x === 'string' && x.trim() ? x.trim().slice(0, max) : null);
+  const id = str(v?.id, 100);
+  if (!id) return null;
+  return { id, name: str(v?.name, 120), platform: str(v?.platform, 20) };
 }
 
 export async function deleteSession(token) {

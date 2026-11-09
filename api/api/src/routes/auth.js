@@ -7,7 +7,9 @@ import {
   deleteSession,
   hashPassword,
   publicUser,
+  readDevice,
   requireUser,
+  touchDevice,
   verifyPassword,
 } from '../auth.js';
 
@@ -36,7 +38,7 @@ function readPassword(v) {
 // A hash computed once, so a login with an unknown email takes as long as one with a wrong password.
 const dummyHash = hashPassword('not-a-real-password');
 
-/** POST /api/auth/register  { name, email, password } -> { token, user } */
+/** POST /api/auth/register  { name, email, password, device? } -> { token, user } */
 router.post('/register', attempts, async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const email = readEmail(req.body?.email);
@@ -57,11 +59,11 @@ router.post('/register', attempts, async (req, res) => {
     if (e.code === '23505') return res.status(409).json({ error: 'Un compte existe déjà avec cette adresse', code: 'email_taken' });
     throw e;
   }
-  const token = await createSession(row.id);
+  const token = await createSession(row.id, readDevice(req.body?.device));
   res.status(201).json({ token, user: publicUser(row) });
 });
 
-/** POST /api/auth/login  { email, password } -> { token, user } */
+/** POST /api/auth/login  { email, password, device? } -> { token, user } */
 router.post('/login', attempts, async (req, res) => {
   const email = readEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
@@ -72,12 +74,13 @@ router.post('/login', attempts, async (req, res) => {
   const ok = row ? await verifyPassword(password, row.password_hash) : (await verifyPassword(password, await dummyHash), false);
   if (!ok) return res.status(401).json({ error: 'E-mail ou mot de passe incorrect', code: 'credentials' });
 
-  const token = await createSession(row.id);
+  const token = await createSession(row.id, readDevice(req.body?.device));
   res.json({ token, user: publicUser(row) });
 });
 
 /** GET /api/auth/me -> { user }   (401 when the token is missing, unknown or expired) */
-router.get('/me', requireUser, (req, res) => {
+router.get('/me', requireUser, async (req, res) => {
+  await touchDevice(bearerToken(req));
   res.json({ user: req.user });
 });
 

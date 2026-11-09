@@ -5,20 +5,38 @@
 // - The app shows only the login screen until `status` is 'signedIn' (see app/_layout.tsx).
 // - If the server answers 401 (session expired or closed), the user is signed out.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { api, ApiError, configureAuth } from './api';
-import type { AuthResult, User } from './types';
+import type { AuthResult, DeviceInfo, User } from './types';
 
 const TOKEN_KEY = 'marches-auth-token';
 const USER_KEY = 'marches-auth-user';
+/** Random id of this phone, created once and kept after sign-out (so a phone is counted once). */
+const DEVICE_KEY = 'marches-device-id';
 
 const storage = {
   get: (k: string) => (Platform.OS === 'web' ? AsyncStorage.getItem(k) : SecureStore.getItemAsync(k)),
   set: (k: string, v: string) => (Platform.OS === 'web' ? AsyncStorage.setItem(k, v) : SecureStore.setItemAsync(k, v)),
   remove: (k: string) => (Platform.OS === 'web' ? AsyncStorage.removeItem(k) : SecureStore.deleteItemAsync(k)),
 };
+
+let deviceInfo: Promise<DeviceInfo> | null = null;
+
+/** This phone's id, name and system, sent at sign-in. */
+function getDevice(): Promise<DeviceInfo> {
+  deviceInfo ??= (async () => {
+    let id = await storage.get(DEVICE_KEY).catch(() => null);
+    if (!id) {
+      id = `${Platform.OS}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 12)}`;
+      await storage.set(DEVICE_KEY, id).catch(() => {});
+    }
+    return { id, name: Constants.deviceName ?? null, platform: Platform.OS };
+  })();
+  return deviceInfo;
+}
 
 type AuthState = {
   status: 'loading' | 'signedOut' | 'signedIn';
@@ -80,9 +98,10 @@ export const useAuth = create<AuthState>()((set, get) => {
       }
     },
 
-    login: async (email, password) => start(await api.login(email.trim(), password)),
+    login: async (email, password) => start(await api.login(email.trim(), password, await getDevice())),
 
-    register: async (name, email, password) => start(await api.register(name.trim(), email.trim(), password)),
+    register: async (name, email, password) =>
+      start(await api.register(name.trim(), email.trim(), password, await getDevice())),
 
     logout: async () => {
       await api.logout().catch(() => {}); // ends the session on the server; fine if offline
