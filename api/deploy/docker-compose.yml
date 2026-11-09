@@ -1,6 +1,6 @@
 # Runs the whole backend on one server:
 #   db    — PostgreSQL with your tenders data
-#   api   — the Node.js API (reads the database with a read-only user)
+#   api   — the Node.js API (reads the tenders with a read-only user; also manages user accounts)
 #   caddy — public web server with automatic HTTPS, forwards requests to the API
 #           and /files/... to the files service
 #   files — serves the tender documents in /opt/marches/dce/<id> (files-api, no database)
@@ -52,6 +52,8 @@ services:
       ATTRIBUTIONS_TABLE: ${ATTRIBUTIONS_TABLE:-}
       PORT: 4000
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Tender data only for signed-in users ("false" keeps it open to older app versions).
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
     # Not published: only Caddy can reach it.
     expose:
       - "4000"

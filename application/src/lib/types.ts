@@ -87,3 +87,6 @@ export type Filters = {
   maxEstimation: string;
   sort: Sort;
 };
+/** Signed-in account (from /api/auth). */
+export type User = { id: string; email: string; name: string; createdAt: string };
+export type AuthResult = { token: string; user: User };
