@@ -6,6 +6,8 @@ import { CONSULTATION_FIELDS } from './fields.js';
 import consultationsRouter from './routes/consultations.js';
 import attributionsRouter from './routes/attributions.js';
 import metaRouter from './routes/meta.js';
+import authRouter from './routes/auth.js';
+import { requireUser } from './auth.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -17,9 +19,14 @@ app.use(express.json({ limit: '100kb' }));
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.use('/api/consultations', consultationsRouter);
-app.use('/api/attributions', attributionsRouter);
-app.use('/api/meta', metaRouter);
+app.use('/api/auth', authRouter);
+
+// Tender data is for signed-in users only. Set AUTH_REQUIRED=false to keep it open
+// (e.g. while phones with an older version of the app, without login, are still in use).
+const dataGuard = process.env.AUTH_REQUIRED === 'false' ? [] : [requireUser];
+app.use('/api/consultations', dataGuard, consultationsRouter);
+app.use('/api/attributions', dataGuard, attributionsRouter);
+app.use('/api/meta', dataGuard, metaRouter);
 
 app.use((_req, res) => res.status(404).json({ error: 'Route introuvable' }));
 

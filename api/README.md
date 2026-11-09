@@ -99,3 +99,28 @@ See `deploy/.env.example` for the full list. Copy it to `deploy/.env` and fill i
 ## License
 
 <!-- TODO: choose a license (e.g. MIT) or state "All rights reserved" -->
+
+## User accounts
+
+The mobile app opens on a login / create-account screen; tender data is only served to signed-in users.
+
+| Route | Body | Answer |
+|---|---|---|
+| `POST /api/auth/register` | `{ name, email, password }` (password ≥ 8 characters) | `201 { token, user }`, `409` if the email is taken |
+| `POST /api/auth/login` | `{ email, password }` | `{ token, user }`, `401` if wrong |
+| `GET /api/auth/me` | — | `{ user }` |
+| `POST /api/auth/logout` | — | `204` |
+
+The app sends `Authorization: Bearer <token>` with every request. `/api/consultations`, `/api/attributions`
+and `/api/meta` answer `401` without a valid token (set `AUTH_REQUIRED=false` in `deploy/.env` to keep them open
+while older app versions without login are still in use). Passwords are hashed with scrypt; the database keeps
+only a SHA-256 of each token. Sessions last 90 days (`SESSION_DAYS`). Login and sign-up are limited to 20 attempts
+per 15 minutes per IP address.
+
+**Existing server — run once** to create the `app_users` and `app_sessions` tables (new databases get them automatically):
+
+```bash
+cd deploy
+docker compose exec -T db psql -U postgres -d marches_publics < initdb/02-accounts.sql
+docker compose up -d --build api
+```

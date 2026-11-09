@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AccountButton } from '@/components/AccountButton';
 import { ConsultationCard } from '@/components/ConsultationCard';
 import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { Card, EmptyState, ErrorState, Loading, SectionTitle } from '@/components/ui';
@@ -35,6 +36,7 @@ export default function HomeScreen() {
             <Text style={styles.brand}>{t('home.brand')}</Text>
           </View>
           <LanguageSwitch variant="onPrimary" />
+          <AccountButton />
         </View>
         <Pressable
           style={styles.search}
@@ -132,7 +134,7 @@ function Shortcut({ title, subtitle, onPress }: { title: string; subtitle: strin
 
 const styles = StyleSheet.create({
   header: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingBottom: 20, gap: 2 },
-  headRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   hello: { color: '#FFFFFF', opacity: 0.9, fontSize: 13, marginTop: 12 },
   brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', marginBottom: 14 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#FFFFFF' },
